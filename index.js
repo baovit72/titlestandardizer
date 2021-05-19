@@ -25,7 +25,7 @@ async function run() {
   log(data);
   log(config);
   const replacers = config
-    .map((item) => item.replacer && item.replacer.toLowerCase().trim())
+    .map((item) => item.replacer && item.replacer.toLowerCase())
     .filter((item) => item && item.length);
   const postfixes = config
     .map((item) => item.postfix && item.postfix.toLowerCase().trim())
