@@ -1,7 +1,7 @@
-const csv = require('csv-parser');
-const fs = require('fs');
+const csv = require("csv-parser");
+const fs = require("fs");
 
-const ObjectsToCsv = require('objects-to-csv');
+const ObjectsToCsv = require("objects-to-csv");
 
 const readCsv = (path) => {
   return new Promise((resolve, reject) => {
@@ -9,8 +9,8 @@ const readCsv = (path) => {
     try {
       fs.createReadStream(path)
         .pipe(csv())
-        .on('data', (data) => results.push(data))
-        .on('end', () => {
+        .on("data", (data) => results.push(data))
+        .on("end", () => {
           resolve(results.filter((item) => Object.keys(item).length));
         });
     } catch (error) {
@@ -20,8 +20,8 @@ const readCsv = (path) => {
 };
 
 async function run() {
-  const data = await readCsv('data.csv');
-  const config = await readCsv('config.csv');
+  const data = await readCsv("data.csv");
+  const config = await readCsv("config.csv");
   log(data);
   log(config);
   const replacers = config
@@ -44,13 +44,13 @@ async function run() {
     return titles.map((title) => {
       let rTitle = title;
       replacers.forEach((r) => {
-        rTitle = rTitle.split(r).join('');
+        rTitle = rTitle.split(r).join("");
       });
       return rTitle;
     });
   }
   function stdizeSpace(titles) {
-    return titles.map((title) => title.trim().replace(/ +(?= )/g, ''));
+    return titles.map((title) => title.trim().replace(/ +(?= )/g, ""));
   }
   function shuffle(array) {
     var currentIndex = array.length,
@@ -74,27 +74,32 @@ async function run() {
 
   function generatePostfixedTitles(key, count) {
     if (count >= postfixes.length) {
-      return postfixes.map((pf) => key + ' ' + pf);
+      return postfixes.map((pf) => key + " " + pf);
     } else {
       const shuffledPostfixes = shuffle(postfixes);
       log(shuffledPostfixes);
       return new Array(count)
         .fill()
-        .map((item, index) => key + ' ' + shuffledPostfixes[index]);
+        .map((item, index) => key + " " + shuffledPostfixes[index]);
     }
   }
 
   function updateDuplicateTitles(titles) {
     const count = {};
+    const rawTitles = [];
     titles.forEach(function (i) {
       count[i] = (count[i] || 0) + 1;
     });
     const newTitles = Object.keys(count).map((key) => {
       const titleCount = count[key];
       if (titleCount === 1) return key;
-      return generatePostfixedTitles(key, titleCount);
+      const titles = generatePostfixedTitles(key, titleCount);
+      rawTitles.push(
+        ...new Array(titles.length).fill(key, 0, titles.length - 1)
+      );
+      return titles;
     });
-    return newTitles.flat();
+    return [newTitles.flat(), rawTitles];
   }
   function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
@@ -102,29 +107,32 @@ async function run() {
   function upperCaseFirstLetterInTitles(titles) {
     return titles.map((title) => {
       return title
-        .split(' ')
+        .split(" ")
         .map((word) => capitalizeFirstLetter(word))
-        .join(' ');
+        .join(" ");
     });
   }
   function growTitles(titles) {
     return titles.map((title) =>
-      title.split(' ').length < 5 ? title + ' ' + phrase : title
+      title.split(" ").length < 5 ? title + " " + phrase : title
     );
   }
   const s1Titles = replaceAllReplacers(titles);
   const s2Titles = stdizeSpace(s1Titles);
-  const s3Titles = updateDuplicateTitles(s2Titles);
+  const updateDup = updateDuplicateTitles(s2Titles);
+  const s3Titles = updateDup[0];
+  const rawTitles = updateDup[1];
   const s4Titles = growTitles(s3Titles);
   const s5Titles = upperCaseFirstLetterInTitles(s4Titles);
   const csv = new ObjectsToCsv(
-    s5Titles.map((title) => ({
+    s5Titles.map((title, index) => ({
+      origin: rawTitles[index],
       title,
     }))
   );
 
-  await csv.toDisk('./output.csv');
-  console.log('Done...');
+  await csv.toDisk("./output.csv");
+  console.log("Done...");
 }
 const log = (msg) => {
   DEBUG && console.log(msg);
