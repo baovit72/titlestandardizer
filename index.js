@@ -35,22 +35,24 @@ async function run() {
     .filter((item) => item && item.length)[0];
 
   const titles = data
-    .map((item) => item.title && item.title.toLowerCase().trim())
+    .map((item) => item.title && item.title)
     .filter((item) => item && item.length);
   log(replacers);
   log(postfixes);
   log(titles);
-  function replaceAllReplacers(titles) {
-    return titles.map((title) => {
-      let rTitle = title;
+  function replaceAllReplacers(titleObjects) {
+    titleObjects.forEach((obj) => {
+      let rTitle = obj.parsed;
       replacers.forEach((r) => {
         rTitle = rTitle.split(r).join("");
       });
-      return rTitle;
+      obj.parsed = rTitle;
     });
   }
-  function stdizeSpace(titles) {
-    return titles.map((title) => title.trim().replace(/ +(?= )/g, ""));
+  function stdizeSpace(titleObjects) {
+    titleObjects.forEach(
+      (obj) => (obj.parsed = obj.parsed.trim().replace(/ +(?= )/g, ""))
+    );
   }
   function shuffle(array) {
     var currentIndex = array.length,
@@ -84,52 +86,57 @@ async function run() {
     }
   }
 
-  function updateDuplicateTitles(titles) {
+  function updateDuplicateTitles(titleObjects) {
     const count = {};
-    const rawTitles = [];
-    titles.forEach(function (i) {
-      count[i] = (count[i] || 0) + 1;
+    titleObjects.forEach(function (obj) {
+      const title = obj.parsed;
+      count[title] = (count[title] || 0) + 1;
     });
-    const newTitles = Object.keys(count).map((key) => {
+    Object.keys(count).map((key) => {
       const titleCount = count[key];
-      if (titleCount === 1) return key;
-      const titles = generatePostfixedTitles(key, titleCount);
-      rawTitles.push(
-        ...new Array(titles.length).fill(key, 0, titles.length - 1)
-      );
-      return titles;
+      let titles = [];
+      if (titleCount === 1) titles = [key];
+      else titles = generatePostfixedTitles(key, titleCount);
+      let tIdx = 0;
+      titleObjects.forEach((obj) => {
+        const title = obj.parsed;
+        if (title === key) {
+          if (tIdx < titles.length) obj.parsed = titles[tIdx++];
+          else obj.parsed = "FALSE";
+        }
+      });
     });
-    return [newTitles.flat(), rawTitles];
   }
   function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
   }
-  function upperCaseFirstLetterInTitles(titles) {
-    return titles.map((title) => {
-      return title
+  function upperCaseFirstLetterInTitles(titleObjects) {
+    titleObjects.forEach((obj) => {
+      obj.parsed = obj.parsed
         .split(" ")
         .map((word) => capitalizeFirstLetter(word))
         .join(" ");
     });
   }
-  function growTitles(titles) {
-    return titles.map((title) =>
-      title.split(" ").length < 5 ? title + " " + phrase : title
-    );
+  function growTitles(titleObjects) {
+    titleObjects
+      .filter((obj) => obj.parsed !== "FALSE")
+      .forEach((obj) => {
+        const title = obj.parsed;
+        obj.parsed = title.split(" ").length < 5 ? title + " " + phrase : title;
+      });
   }
-  const s1Titles = replaceAllReplacers(titles);
-  const s2Titles = stdizeSpace(s1Titles);
-  const updateDup = updateDuplicateTitles(s2Titles);
-  const s3Titles = updateDup[0];
-  const rawTitles = updateDup[1];
-  const s4Titles = growTitles(s3Titles);
-  const s5Titles = upperCaseFirstLetterInTitles(s4Titles);
-  const csv = new ObjectsToCsv(
-    s5Titles.map((title, index) => ({
-      origin: rawTitles[index],
-      title,
-    }))
-  );
+  const titleObjects = titles.map((title) => ({
+    origin: title,
+    parsed: title.toLowerCase().trim(),
+  }));
+
+  replaceAllReplacers(titleObjects);
+  stdizeSpace(titleObjects);
+  updateDuplicateTitles(titleObjects);
+  growTitles(titleObjects);
+  upperCaseFirstLetterInTitles(titleObjects);
+  const csv = new ObjectsToCsv(titleObjects);
 
   await csv.toDisk("./output.csv");
   console.log("Done...");
